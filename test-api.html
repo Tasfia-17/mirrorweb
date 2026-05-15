@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>API Test</title>
+</head>
+<body>
+  <h1>Backend Connection Test</h1>
+  <button onclick="testHealth()">Test Health</button>
+  <button onclick="testRegister()">Test Register</button>
+  <pre id="output"></pre>
+
+  <script>
+    const output = document.getElementById('output');
+    
+    async function testHealth() {
+      try {
+        const res = await fetch('http://127.0.0.1:8001/api/health');
+        const data = await res.json();
+        output.textContent = 'Health: ' + JSON.stringify(data, null, 2);
+      } catch (err) {
+        output.textContent = 'Health Error: ' + err.message;
+      }
+    }
+
+    async function testRegister() {
+      try {
+        const res = await fetch('http://127.0.0.1:8001/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            email: 'test' + Date.now() + '@test.com',
+            password: 'testpass123'
+          })
+        });
+        const data = await res.json();
+        output.textContent = 'Register: ' + JSON.stringify(data, null, 2);
+      } catch (err) {
+        output.textContent = 'Register Error: ' + err.message;
+      }
+    }
+  </script>
+</body>
+</html>
