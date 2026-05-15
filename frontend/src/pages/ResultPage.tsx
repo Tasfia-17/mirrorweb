@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../utils/api'
 import { CornerSprig } from '../components/Botanicals'
+import HyperframesPreview from '../components/HyperframesPreview'
 
 interface Job {
   id: number
@@ -10,6 +11,7 @@ interface Job {
   created_at: string
   result_json?: any
   audio_path?: string
+  error?: string
 }
 
 export default function ResultPage() {
@@ -178,6 +180,11 @@ export default function ResultPage() {
                     ))}
                   </div>
                 </div>
+              )}
+
+              {/* Hyperframes live preview */}
+              {Object.keys(scripts).length > 0 && (
+                <HyperframesPreview scripts={scripts} videos={videos} />
               )}
 
               {/* Platform videos */}

@@ -1,9 +1,10 @@
 import json
 import sys
 import uuid
+import traceback
 from pathlib import Path
-from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException
 from typing import Optional
+from fastapi import APIRouter, Depends, UploadFile, File, Form, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db, Job, User
 from auth import get_current_user
@@ -18,14 +19,34 @@ AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".ogg", ".webm"}
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
-def _run_pipeline(job_id: str, audio_path: str, image_path: Optional[str], user_id: int):
-    import traceback
+def _text_to_audio(text: str, out_path: str, pipeline_path: str):
+    """Convert text to MP3 using ElevenLabs TTS with a default voice."""
+    if pipeline_path not in sys.path:
+        sys.path.insert(0, pipeline_path)
+    from clients.elevenlabs import _client  # type: ignore
+    audio = _client.text_to_speech.convert(
+        text=text[:5000],
+        voice_id="JBFqnCBsd6RMkjVDRZzb",  # ElevenLabs default "George" voice
+        model_id="eleven_multilingual_v2",
+        output_format="mp3_44100_128",
+    )
+    with open(out_path, "wb") as f:
+        for chunk in audio:
+            f.write(chunk)
+
+
+def _run_pipeline(job_id: str, audio_path: str, image_path: Optional[str],
+                  user_id: int, text_input: Optional[str] = None):
     db = next(get_db())
     try:
-        base = Path(__file__).parent.parent  # mirror-web root
+        base = Path(__file__).parent.parent
         mirror_path = str((base / MIRROR_PIPELINE_PATH).resolve())
         if mirror_path not in sys.path:
             sys.path.insert(0, mirror_path)
+
+        # Text mode: generate audio from text first
+        if text_input:
+            _text_to_audio(text_input, audio_path, mirror_path)
 
         from core.orchestrator import run_pipeline  # type: ignore
         result = run_pipeline(audio_path, user_id=str(user_id), image_path=image_path)
@@ -53,22 +74,29 @@ async def generate(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     image: Optional[UploadFile] = File(None),
+    text_input: Optional[str] = Form(None),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in AUDIO_EXTS:
-        raise HTTPException(400, f"Unsupported audio type. Use: {', '.join(AUDIO_EXTS)}")
-
-    content = await file.read()
-    if len(content) > 32 * 1024 * 1024:
-        raise HTTPException(400, "File too large. Max 32 MB.")
-
     job_id = str(uuid.uuid4())
-    audio_path = str(UPLOAD_DIR / f"{job_id}{suffix}")
-    Path(audio_path).write_bytes(content)
+    is_text_mode = bool(text_input and text_input.strip())
 
-    image_path = None
+    if is_text_mode:
+        if len(text_input.strip()) < 50:
+            raise HTTPException(400, "Text must be at least 50 characters.")
+        audio_path = str(UPLOAD_DIR / f"{job_id}.mp3")
+        image_path = None
+    else:
+        suffix = Path(file.filename or "").suffix.lower()
+        if suffix not in AUDIO_EXTS:
+            raise HTTPException(400, f"Unsupported audio type. Use: {', '.join(AUDIO_EXTS)}")
+        content = await file.read()
+        if len(content) > 32 * 1024 * 1024:
+            raise HTTPException(400, "File too large. Max 32 MB.")
+        audio_path = str(UPLOAD_DIR / f"{job_id}{suffix}")
+        Path(audio_path).write_bytes(content)
+        image_path = None
+
     if image and image.filename:
         img_suffix = Path(image.filename).suffix.lower()
         if img_suffix in IMAGE_EXTS:
@@ -79,5 +107,8 @@ async def generate(
     job = Job(id=job_id, user_id=user.id, audio_path=audio_path)
     db.add(job); db.commit()
 
-    background_tasks.add_task(_run_pipeline, job_id, audio_path, image_path, user.id)
+    background_tasks.add_task(
+        _run_pipeline, job_id, audio_path, image_path, user.id,
+        text_input.strip() if is_text_mode else None
+    )
     return {"job_id": job_id, "status": "running"}
