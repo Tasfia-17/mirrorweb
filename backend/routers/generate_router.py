@@ -39,10 +39,15 @@ def _run_pipeline(job_id: str, audio_path: str, image_path: Optional[str],
                   user_id: int, text_input: Optional[str] = None):
     db = next(get_db())
     try:
-        base = Path(__file__).parent.parent
-        mirror_path = str((base / MIRROR_PIPELINE_PATH).resolve())
+        # Resolve pipeline path: try env var as absolute first, then relative to this file
+        env_path = Path(MIRROR_PIPELINE_PATH)
+        if env_path.is_absolute():
+            mirror_path = str(env_path)
+        else:
+            mirror_path = str((Path(__file__).parent.parent / MIRROR_PIPELINE_PATH).resolve())
         if mirror_path not in sys.path:
             sys.path.insert(0, mirror_path)
+        print(f"[MIRROR] pipeline path: {mirror_path}, exists: {Path(mirror_path).exists()}", flush=True)
 
         # Text mode: generate audio from text first
         if text_input:
