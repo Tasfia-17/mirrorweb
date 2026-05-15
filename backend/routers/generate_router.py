@@ -18,8 +18,9 @@ def _run_pipeline(job_id: str, audio_path: str, user_id: int):
     """Run mirror pipeline in background and update job in DB."""
     db = next(get_db())
     try:
-        # Add mirror pipeline to path
-        mirror_path = str(Path(MIRROR_PIPELINE_PATH).resolve())
+        # Resolve pipeline path relative to this file's location (backend/)
+        base = Path(__file__).parent.parent  # mirror-web root
+        mirror_path = str((base / MIRROR_PIPELINE_PATH).resolve())
         if mirror_path not in sys.path:
             sys.path.insert(0, mirror_path)
 
@@ -35,10 +36,11 @@ def _run_pipeline(job_id: str, audio_path: str, user_id: int):
             job.duration_seconds = result.get("duration_seconds", 0)
             db.commit()
     except Exception as e:
+        import traceback
         job = db.query(Job).filter(Job.id == job_id).first()
         if job:
             job.status = "error"
-            job.error = str(e)
+            job.error = traceback.format_exc()
             db.commit()
     finally:
         db.close()

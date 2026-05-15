@@ -130,9 +130,9 @@ export default function ResultPage() {
         {job.status === 'error' && (
           <div className="card p-8 bg-red-50 border-red-200">
             <p className="text-red-600 font-medium mb-2">Generation failed</p>
-            <p className="text-sm text-red-600/80">
-              {job.result_json?.error || 'An error occurred during processing. Please try again.'}
-            </p>
+            <pre className="text-xs text-red-600/80 whitespace-pre-wrap overflow-auto max-h-64">
+              {job.error || 'An error occurred during processing. Please try again.'}
+            </pre>
           </div>
         )}
 
