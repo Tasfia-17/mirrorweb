@@ -26,6 +26,7 @@ export default function GeneratePage() {
   const [audio, setAudio] = useState<File | null>(null)
   const [image, setImage] = useState<File | null>(null)
   const [text, setText] = useState('')
+  const [mode, setMode] = useState<'quick' | 'full'>('quick')
   const [uploading, setUploading] = useState(false)
   const [step, setStep] = useState(0)
   const [error, setError] = useState('')
@@ -48,6 +49,7 @@ export default function GeneratePage() {
       formData.append('text_input', text)
     }
     if (image) formData.append('image', image)
+    formData.append('mode', mode)
 
     try {
       const res = await api.post('/api/generate', formData, {
@@ -118,6 +120,19 @@ export default function GeneratePage() {
               ))}
             </div>
 
+            {/* Mode selector */}
+            <div className="grid grid-cols-2 gap-3">
+              {([['quick', '⚡ Quick', '4 platforms · ~5 min · $1.80', 'LinkedIn, TikTok, YouTube, Sales'],
+                 ['full',  '🌍 Full',  '5 platforms + 10 languages · ~15 min · $4.20', '+ Podcast + 10 language translations']] as const).map(([val, label, desc, sub]) => (
+                <button key={val} type="button" onClick={() => setMode(val)}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${mode === val ? 'border-charcoal bg-white' : 'border-border bg-vellum hover:border-charcoal/40'}`}>
+                  <p className="font-medium text-charcoal text-sm">{label}</p>
+                  <p className="text-xs text-storygreen mt-0.5">{desc}</p>
+                  <p className="text-xs text-mutedgray mt-0.5">{sub}</p>
+                </button>
+              ))}
+            </div>
+
             {tab === 'audio' ? (
               <div className="card p-6">
                 <span className="text-sm font-medium text-charcoal mb-3 block">Audio file</span>
@@ -171,7 +186,7 @@ export default function GeneratePage() {
 
             <button type="submit" disabled={tab === 'audio' ? !audio : text.length < 50}
               className="btn-primary w-full py-3">
-              Generate 50 pieces of content
+              {mode === 'quick' ? 'Generate 4 platform videos' : 'Generate 50 pieces of content'}
             </button>
           </form>
         )}

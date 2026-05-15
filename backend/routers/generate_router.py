@@ -36,7 +36,7 @@ def _text_to_audio(text: str, out_path: str, pipeline_path: str):
 
 
 def _run_pipeline(job_id: str, audio_path: str, image_path: Optional[str],
-                  user_id: int, text_input: Optional[str] = None):
+                  user_id: int, text_input: Optional[str] = None, mode: str = "quick"):
     db = next(get_db())
     try:
         # Resolve pipeline path: try env var as absolute first, then relative to this file
@@ -54,7 +54,7 @@ def _run_pipeline(job_id: str, audio_path: str, image_path: Optional[str],
             _text_to_audio(text_input, audio_path, mirror_path)
 
         from core.orchestrator import run_pipeline  # type: ignore
-        result = run_pipeline(audio_path, user_id=str(user_id), image_path=image_path)
+        result = run_pipeline(audio_path, user_id=str(user_id), image_path=image_path, mode=mode)
 
         job = db.query(Job).filter(Job.id == job_id).first()
         if job:
@@ -80,6 +80,7 @@ async def generate(
     file: UploadFile = File(...),
     image: Optional[UploadFile] = File(None),
     text_input: Optional[str] = Form(None),
+    mode: str = Form("quick"),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -114,6 +115,6 @@ async def generate(
 
     background_tasks.add_task(
         _run_pipeline, job_id, audio_path, image_path, user.id,
-        text_input.strip() if is_text_mode else None
+        text_input.strip() if is_text_mode else None, mode
     )
     return {"job_id": job_id, "status": "running"}
